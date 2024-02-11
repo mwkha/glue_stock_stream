@@ -1,2 +1,4 @@
 kafka-python
 pandas
+polygon
+boto3
