@@ -2,3 +2,4 @@ kafka-python
 pandas
 polygon
 boto3
+python-dotenv
