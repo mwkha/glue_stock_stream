@@ -6,6 +6,15 @@ services:
     ports:
       - 9090:9090
 
+  motoserver:
+    image: motoserver/moto:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - MOTO_PORT=3000 # set moto listener port with env var
+    volumes: 
+      - //var/run/docker.sock:/var/run/docker.sock
+
   zookeeper:
     image: confluentinc/cp-zookeeper:5.5.0
     hostname: zookeeper
