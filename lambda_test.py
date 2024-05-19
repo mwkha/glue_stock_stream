@@ -16,7 +16,6 @@ iam = boto3.client("iam", endpoint_url = endpoint_url,aws_access_key_id = "ajaja
 archive = zipfile.ZipFile('function.zip', 'w')
 archive.write('myFunc.py', 'myFunc.py')
 archive.close()
-# os.chmod("function.zip", 444)
 
 s3.upload_file('function.zip', 'testing', 'function.zip')
 
