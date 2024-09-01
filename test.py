@@ -1,39 +1,10 @@
+
 import boto3
-import pandas as pd
-import io 
-import json 
-import zipfile
-import os
-## Visit http://localhost:3000/moto-api/ for dashboard
-endpoint_url = 'http://localhost:3000'
+import json
 
-s3 = boto3.client("s3", endpoint_url = endpoint_url,aws_access_key_id = "ajajaj", aws_secret_access_key = "slslls", region_name = "ap-southeast-2")
-lamb = boto3.client("lambda", endpoint_url = endpoint_url,aws_access_key_id = "ajajaj", aws_secret_access_key = "slslls", region_name = "ap-southeast-2")
-iam = boto3.client("iam", endpoint_url = endpoint_url,aws_access_key_id = "ajajaj", aws_secret_access_key = "slslls", region_name = "ap-southeast-2")
-assume_role_policy_document = json.dumps({
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-        "Effect": "Allow",
-        "Principal": {
-            "Service": "greengrass.amazonaws.com"
-        },
-        "Action": "sts:AssumeRole"
-        }
-    ]
-})
+s3client = boto3.client('s3',endpoint_url = "http://localhost:3000", aws_access_key_id = "1234", aws_secret_access_key = "4321")
 
-create_role_response = iam.create_role(
-    RoleName = "lambdaRole",
-    AssumeRolePolicyDocument = assume_role_policy_document
-)
+onbj = s3client.get_object(Bucket='polygonStockData', Key = "stock_market_1725170381672116.json")
 
-s3.create_bucket(Bucket = "testing", CreateBucketConfiguration={
-        'LocationConstraint':'ap-southeast-2'})
-
-s3.upload_file('indexProcessed.csv', 'testing', 'indexProcessed.csv')
-
-
-
-
-
+j = json.loads(onbj['Body'].read())
+print(j)

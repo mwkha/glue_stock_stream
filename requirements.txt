@@ -3,3 +3,4 @@ pandas
 polygon
 boto3
 python-dotenv
+s3fs

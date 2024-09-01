@@ -31,3 +31,6 @@ lamb.create_function(FunctionName='myFunc8', Runtime = 'python3.9', Code={
 resp = lamb.invoke(FunctionName='myFunc8',Payload=json.dumps({}))
 print(resp['Payload'].read())
 # payload = json.loads(resp['Payload'].read())
+
+s3.create_bucket(Bucket = "testing", CreateBucketConfiguration={
+        'LocationConstraint':'ap-southeast-2'})

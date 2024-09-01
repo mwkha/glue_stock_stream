@@ -1,29 +1,38 @@
 import pandas as pd
 from kafka import KafkaConsumer, KafkaProducer
-from time import sleep
-from json import dumps
 import os
 from os.path import exists
 from dotenv import load_dotenv
+from botocore.client import ClientError
+from json import dumps, loads
 import json
 import polygon
-import datetime
+from datetime import datetime
 import boto3
+from s3fs import S3FileSystem
 
 load_dotenv()
 
-s3client = boto3.client('s3',endpoint_url = "http://localhost:9090", aws_access_key_id = "1234", aws_secret_access_key = "4321")
+s3client = boto3.client('s3',endpoint_url = "http://localhost:3000", aws_access_key_id = "1234", aws_secret_access_key = "4321")
 polygon_key = url = os.getenv("POLYGON_API_KEY")
 ticker_csv = os.getenv("TICKER_CSV_FILE")
 host = os.getenv("KAFKA_HOST")
 port = os.getenv("KAFKA_PORT")
 KAFKA_SERVER = host + ":" + port
 client = polygon.StocksClient(polygon_key)
+s3FS = S3FileSystem(key = "1234", secret = "1234", client_kwargs={'endpoint_url': 
+    "http://localhost:3000"})
 
 producer = KafkaProducer(
     bootstrap_servers = KAFKA_SERVER,
-    key_serializer = lambda v: json.dumps(v).encode("ascii"),
-    value_serializer = lambda v: json.dumps(v).encode("ascii")
+    value_serializer = lambda v: dumps(v).encode('utf-8')
+    )
+
+consumer = KafkaConsumer(
+    'stock_streamer',
+    group_id='my-group',
+    bootstrap_servers = KAFKA_SERVER,
+    value_deserializer = lambda v: loads(v.decode('utf-8'))
     )
 
 def getTickerData():
@@ -34,7 +43,6 @@ def getTickerData():
         grouped_daily = client.get_grouped_daily_bars(
             "2023-02-16",
         )
-
         json_grouped = json.dumps(grouped_daily['results'])
         dataframe = pd.read_json(json_grouped)
         # Rename columns to full names for clearer representation
@@ -62,21 +70,42 @@ def fetchRecord(csv_file):
     print(dict_record)
     return dict_record
 
-
-def pushToKafkaConsumer():
+def fetchRecordPushToKafkaConsumer():
     record = fetchRecord(ticker_csv)
     producer.send('stock_streamer', value = record)
 
-getTickerData()
-for i in range(20):
-    pushToKafkaConsumer()
+def createInfra(bucketName):
+    # If head bucket returns error means bucket not create so we can go ahead and create
+    try:
+        s3client.head_bucket(Bucket = bucketName)
+    except ClientError:
+        s3client.create_bucket(Bucket = bucketName)
 
-producer.close()
+def main():
+    # Create the s3 bucket that we will push data to.
+    createInfra("polygonStockData")
 
-s3client.put_object(Bucket = "polygon_stock_data", Key = "indexProcessed3.csv", Body = "indexProcessed.csv")
+    # Fetch data using polygon api
+    getTickerData()
 
+    # Create some number of sample rows and push to producer
+    for i in range(20):
+        fetchRecordPushToKafkaConsumer()
+        producer.flush()
 
+    # Get message and store in s3.
+    for message in consumer:
+        dt = datetime.now()
+        ts_milli = int(dt.timestamp() * 1000000)
+        with s3FS.open("s3://polygonStockData/stock_market_{}.json".format(ts_milli), "w") as file:
+            json.dump(message.value, file)
+    
+    producer.close()
+    consumer.close()
+    print("Pushed all records and closed producer + consumer")
 
+main()
+# s3client.put_object(Bucket = "polygon_stock_data", Key = "indexProcessed3.csv", Body = "indexProcessed.csv")
 
 # producer.send('stock_streamer', value = dict_record)
 # producer.close()
