@@ -16,10 +16,10 @@ resp = glue_client.get_crawler(
 
 print(resp)
 
-resp = glue_client.stop_crawler(
-    Name='kafkaCrawler'
-)
-print(resp)
+# resp = glue_client.stop_crawler(
+#     Name='kafkaCrawler'
+# )
+# print(resp)
 # resp = glue_client.start_crawler(
 #     Name='kafkaCrawler'
 # )
