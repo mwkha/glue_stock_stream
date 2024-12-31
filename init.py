@@ -14,6 +14,8 @@ from s3fs import S3FileSystem
 load_dotenv()
 
 s3client = boto3.client('s3',endpoint_url = "http://localhost:3000", aws_access_key_id = "1234", aws_secret_access_key = "4321")
+glue_client = boto3.client('glue',endpoint_url = "http://localhost:3000", aws_access_key_id = "1234", aws_secret_access_key = "4321",region_name = "ap-southeast-2")
+iam_client = boto3.client('iam',endpoint_url = "http://localhost:3000", aws_access_key_id = "1234", aws_secret_access_key = "4321", region_name = "ap-southeast-2")
 polygon_key = url = os.getenv("POLYGON_API_KEY")
 ticker_csv = os.getenv("TICKER_CSV_FILE")
 host = os.getenv("KAFKA_HOST")
@@ -74,39 +76,64 @@ def fetchRecordPushToKafkaConsumer():
     record = fetchRecord(ticker_csv)
     producer.send('stock_streamer', value = record)
 
-def createInfra(bucketName):
+def createInfra(bucketName, crawlerName):
     # If head bucket returns error means bucket not create so we can go ahead and create
     try:
         s3client.head_bucket(Bucket = bucketName)
     except ClientError:
         s3client.create_bucket(Bucket = bucketName)
+    try:
+        glue_client.get_crawler(
+    Name=crawlerName
+)
+    except ClientError:
+        glue_client.create_crawler(Name=crawlerName,
+    Role='testRole',
+    Targets={
+        'S3Targets': [
+            {
+                'Path': f's3://{bucketName}/',
+            },
+        ]
+    })
+
+        
 
 def main():
     # Create the s3 bucket that we will push data to.
-    createInfra("polygonStockData")
+    createInfra("polygonStockData", "kafkaCrawler")
 
     # Fetch data using polygon api
     getTickerData()
 
     # Create some number of sample rows and push to producer
-    for i in range(20):
+    for i in range(10):
         fetchRecordPushToKafkaConsumer()
         producer.flush()
-
+    print("Pushed all messages to kafka consumer")
     # Get message and store in s3.
-    for message in consumer:
-        dt = datetime.now()
-        ts_milli = int(dt.timestamp() * 1000000)
-        with s3FS.open("s3://polygonStockData/stock_market_{}.json".format(ts_milli), "w") as file:
-            json.dump(message.value, file)
+    print("Consuming messages from kafka and pushing to s3")
+
+    while True:
+    # Poll for messages
+        messages = consumer.poll(timeout_ms=1000)  # 1-second timeout
+        if not messages:
+            print("No new messages. Exiting loop.")
+            break
+
+        for topic_partition, records in messages.items():
+            for record in records:
+                dt = datetime.now()
+                ts_milli = int(dt.timestamp() * 1000000)
+                print(f"Pushing file stock_market_{ts_milli}.json")
+                with s3FS.open(f"s3://polygonStockData/stock_market_{ts_milli}.json", "w") as file:
+                    # Use record.value directly
+                    json.dump(record.value, file)
     
     producer.close()
     consumer.close()
     print("Pushed all records and closed producer + consumer")
 
-main()
-# s3client.put_object(Bucket = "polygon_stock_data", Key = "indexProcessed3.csv", Body = "indexProcessed.csv")
 
-# producer.send('stock_streamer', value = dict_record)
-# producer.close()
+main()
 
